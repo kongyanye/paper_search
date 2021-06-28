@@ -17,7 +17,7 @@ max_features = 5000
 
 # read database
 db = pickle.load(open(Config.db_path, 'rb'))
-
+'''
 # read all text files for all papers into memory
 txt_paths, pids = [], []
 n = 0
@@ -37,7 +37,7 @@ for pid,j in db.items():
   else:
     print("could not find %s in txt folder." % (txt_path, ))
 print("in total read in %d text files out of %d db entries." % (len(txt_paths), len(db)))
-
+'''
 # compute tfidf vectors with scikits
 v = TfidfVectorizer(input='content', 
         encoding='utf-8', decode_error='replace', strip_accents='unicode', 
@@ -50,9 +50,18 @@ v = TfidfVectorizer(input='content',
 # create an iterator object to conserve memory
 def make_corpus(paths):
   for p in paths:
+    '''
     with open(p, 'r') as f:
       txt = f.read()
     yield txt
+    '''
+    yield db[p]['summary']
+
+txt_paths = list(db.keys())
+pids = []
+for pid,j in db.items():
+  idvv = '%sv%d' % (j['_rawid'], j['_version'])
+  pids.append(idvv)
 
 # train
 train_txt_paths = list(txt_paths) # duplicate

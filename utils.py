@@ -4,29 +4,42 @@ import os
 import re
 import pickle
 import tempfile
+import requests
+import random
+import time
+import requests_random_user_agent
 
 # global settings
 # -----------------------------------------------------------------------------
 class Config(object):
     # main paper information repo file
-    db_path = 'db.p'
+    db_arxiv_dir = './data/arxiv/'
+    db_other_dir = './data/other/'
+    todo_paper_link = './data/runtime/todo.txt'
     # intermediate processing folders
-    pdf_dir = os.path.join('data', 'pdf')
-    txt_dir = os.path.join('data', 'txt')
-    thumbs_dir = os.path.join('static', 'thumbs')
+    runtime_dir = './data/runtime/'
+    pdf_dir = os.path.join('data', 'arxiv_pdf')
+    txt_dir = os.path.join('data', 'arxiv_txt')
+    thumbs_dir = os.path.join('static', 'arxiv_thumbs')
     # intermediate pickles
-    tfidf_path = 'tfidf.p'
-    meta_path = 'tfidf_meta.p'
-    sim_path = 'sim_dict.p'
-    user_sim_path = 'user_sim.p'
+    tfidf_path = './data/run_time/tfidf.p'
+    meta_path = './data/run_time/tfidf_meta.p'
+    sim_path = './data/run_time/sim_dict.p'
+    user_sim_path = './data/run_time/user_sim.p'
     # sql database file
-    db_serve_path = 'db2.p' # an enriched db.p with various preprocessing info
-    database_path = 'as.db'
-    serve_cache_path = 'serve_cache.p'
+    db_serve_path = './data/run_time/db2.p' # an enriched db.p with various preprocessing info
+    database_path = './data/run_time/as.db'
+    serve_cache_path = './data/run_time/serve_cache.p'
     
     beg_for_hosting_money = 1 # do we beg the active users randomly for money? 0 = no.
     banned_path = 'banned.txt' # for twitter users who are banned
     tmp_dir = 'tmp'
+    
+
+    arxiv_cat = 'stat.ML, cs.AI, cs.AR, cs.CC, cs.CE, cs.CG, cs.CL, cs.CR, cs.CV, cs.CY, '\
+    'cs.DB, cs.DC, cs.DL, cs.DM, cs.DS, cs.ET, cs.FL, cs.GL, cs.GR, cs.GT, cs.HC, cs.IR, '\
+    'cs.IT, cs.LG, cs.LO, cs.MA, cs.MM, cs.MS, cs.NA, cs.NE, cs.NI, cs.OH, cs.OS, cs.PF, '\
+    'cs.PL, cs.RO, cs.SC, cs.SD, cs.SE, cs.SI, cs.SY'
 
 # Context managers for atomic writes courtesy of
 # http://stackoverflow.com/questions/2333872/atomic-writing-to-file-with-python
@@ -99,3 +112,13 @@ def strip_version(idstr):
 # "1511.08198v1" is an example of a valid arxiv id that we accept
 def isvalidid(pid):
   return re.match('^\d+\.\d+(v\d+)?$', pid)
+
+def requests_get(url):
+    while True:
+        try:
+            proxy = None
+            response = requests.get(url, proxies={'http': proxy}, timeout=5)
+            return response
+        except:
+            print('Fail to download page %s, retrying....'%url)
+            time.sleep(1)
