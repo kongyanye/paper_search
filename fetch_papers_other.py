@@ -19,6 +19,7 @@ import sys
 
 from utils import Config, safe_pickle_dump, requests_get
 
+failed = []
 
 def load_ccf_list():
     output_dir = Config.runtime_dir
@@ -97,6 +98,7 @@ def get_paper_links_dblp(link, lock=None):
     def parse_one_page(page_link):
         res = []
         page_con = requests_get(page_link)
+        if not page_con: return res
         page_soup = BeautifulSoup(page_con.text, 'html.parser')
         if link_type == 'j':
             class_type = 'entry article'
@@ -112,6 +114,7 @@ def get_paper_links_dblp(link, lock=None):
 
     res = []
     page_index = requests_get(link)
+    if not page_index: return
     page_index_soup = BeautifulSoup(page_index.text, 'html.parser')
 
     if link_type == 'c':
@@ -133,6 +136,9 @@ def get_paper_links_dblp(link, lock=None):
         for vol in s.find_all('a'):
             vol_link = vol['href']
             res += parse_one_page(vol_link)
+
+    if len(res) == 0:
+        failed.append(link)
 
     print('%d paper links fetched for %s' % (len(res), link))
     if lock:
@@ -184,3 +190,7 @@ if __name__ == '__main__':
 
     for t in thread_pool:
         t.join()
+
+    print('These links seem to be failed, please check it:')
+    for each in failed:
+        print(each)

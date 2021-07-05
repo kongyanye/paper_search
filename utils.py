@@ -7,10 +7,12 @@ import tempfile
 import requests
 import random
 import time
-import requests_random_user_agent
+import json
 
 # global settings
 # -----------------------------------------------------------------------------
+
+
 class Config(object):
     # main paper information repo file
     db_arxiv_dir = './data/arxiv/'
@@ -27,22 +29,25 @@ class Config(object):
     sim_path = './data/run_time/sim_dict.p'
     user_sim_path = './data/run_time/user_sim.p'
     # sql database file
-    db_serve_path = './data/run_time/db2.p' # an enriched db.p with various preprocessing info
+    # an enriched db.p with various preprocessing info
+    db_serve_path = './data/run_time/db2.p'
     database_path = './data/run_time/as.db'
     serve_cache_path = './data/run_time/serve_cache.p'
-    
-    beg_for_hosting_money = 1 # do we beg the active users randomly for money? 0 = no.
-    banned_path = 'banned.txt' # for twitter users who are banned
+
+    # do we beg the active users randomly for money? 0 = no.
+    beg_for_hosting_money = 1
+    banned_path = 'banned.txt'  # for twitter users who are banned
     tmp_dir = 'tmp'
-    
 
     arxiv_cat = 'stat.ML, cs.AI, cs.AR, cs.CC, cs.CE, cs.CG, cs.CL, cs.CR, cs.CV, cs.CY, '\
-    'cs.DB, cs.DC, cs.DL, cs.DM, cs.DS, cs.ET, cs.FL, cs.GL, cs.GR, cs.GT, cs.HC, cs.IR, '\
-    'cs.IT, cs.LG, cs.LO, cs.MA, cs.MM, cs.MS, cs.NA, cs.NE, cs.NI, cs.OH, cs.OS, cs.PF, '\
-    'cs.PL, cs.RO, cs.SC, cs.SD, cs.SE, cs.SI, cs.SY'
+        'cs.DB, cs.DC, cs.DL, cs.DM, cs.DS, cs.ET, cs.FL, cs.GL, cs.GR, cs.GT, cs.HC, cs.IR, '\
+        'cs.IT, cs.LG, cs.LO, cs.MA, cs.MM, cs.MS, cs.NA, cs.NE, cs.NI, cs.OH, cs.OS, cs.PF, '\
+        'cs.PL, cs.RO, cs.SC, cs.SD, cs.SE, cs.SI, cs.SY'
 
 # Context managers for atomic writes courtesy of
 # http://stackoverflow.com/questions/2333872/atomic-writing-to-file-with-python
+
+
 @contextmanager
 def _tempfile(*args, **kws):
     """ Context for temporary file.
@@ -96,6 +101,7 @@ def open_atomic(filepath, *args, **kwargs):
                 os.fsync(f.fileno())
         os.rename(tmppath, filepath)
 
+
 def safe_pickle_dump(obj, fname):
     with open_atomic(fname, 'wb') as f:
         pickle.dump(obj, f, -1)
@@ -110,15 +116,102 @@ def strip_version(idstr):
     return parts[0]
 
 # "1511.08198v1" is an example of a valid arxiv id that we accept
+
+
 def isvalidid(pid):
-  return re.match('^\d+\.\d+(v\d+)?$', pid)
+    return re.match('^\d+\.\d+(v\d+)?$', pid)
+
+
+ua_list = [
+    "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36",
+    "Mozilla/5.0 (X11; OpenBSD i386) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.125 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1944.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.3319.102 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.2309.372 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.2117.157 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1866.237 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.137 Safari/4E423F",
+    "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1",
+    "Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10; rv:33.0) Gecko/20100101 Firefox/33.0",
+    "Mozilla/5.0 (X11; Linux i586; rv:31.0) Gecko/20100101 Firefox/31.0",
+    "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.0) Gecko/20130401 Firefox/31.0",
+    "Mozilla/5.0 (Windows NT 5.1; rv:31.0) Gecko/20100101 Firefox/31.0",
+    "Opera/9.80 (X11; Linux i686; Ubuntu/14.10) Presto/2.12.388 Version/12.16",
+    "Opera/9.80 (Windows NT 6.0) Presto/2.12.388 Version/12.14",
+    "Mozilla/5.0 (Windows NT 6.0; rv:2.0) Gecko/20100101 Firefox/4.0 Opera 12.14",
+    "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.0) Opera 12.14",
+    "Opera/9.80 (Windows NT 5.1; U; zh-sg) Presto/2.9.181 Version/12.00"
+]
+
+
+count = 50
+
+def get_ip_pool():
+    
+    ip_pool = []
+    for url in [url1, url2]:
+        ip_pool += requests.get(url).text.strip().split('\r\n')
+    return ip_pool
+
+ip_pool = get_ip_pool()
+failed = {}
+
 
 def requests_get(url):
+    global ip_pool
+    global failed
+    retry_count = 0
+    while retry_count <= 3:
+        try:
+            if len(failed) < len(ip_pool):
+                proxy = ip_pool[len(failed)]
+                failed[proxy] = 0
+            else:
+                failed_sorted = sorted(failed, key=lambda x: failed[x])
+                if failed[failed_sorted[0]] > 3:
+                    ip_pool = get_ip_pool()
+                    failed = {}
+                    continue
+                proxy = random.choice(failed_sorted[:count])
+            response = requests.get(url, proxies={'http': proxy, 'https': proxy}, headers={
+                                    'User-Agent': random.choice(ua_list)}, timeout=10)
+            return response
+        except Exception as e:
+            #print('Fail to download page %s: %s, retrying....' % (url, e))
+            time.sleep(1)
+            retry_count += 1
+            failed[proxy] += 1
+    return ''
+
+
+def requests_get_test(url):
     while True:
         try:
-            proxy = None
-            response = requests.get(url, proxies={'http': proxy}, timeout=5)
+            proxy = random.choice(get_ip_pool())
+            response = requests.get(url, proxies={'http': proxy, 'https': proxy}, headers={
+                                    'User-Agent': random.choice(ua_list)}, timeout=10)
             return response
-        except:
-            print('Fail to download page %s, retrying....'%url)
+        except Exception as e:
+            print('Fail to download page %s: %s, retrying....' % (url, e))
             time.sleep(1)
+
+json_url = "https://raw.githubusercontent.com/scidam/proxy-list/master/proxy.json"
+proxies = json.loads(open('proxies.json','r').read()) #json.loads(requests.get(json_url).text)
+proxy_pool = [each['ip']+':'+each['port'] for each in proxies['proxies']]
+print('%d proxies in total'%len(proxy_pool))
+
+def requests_get_proxy(url):
+    retry_count = 0
+    while retry_count <= 3:
+        try:
+            proxy = random.choice(proxy_pool)
+            response = requests.get(url, proxies={'http': proxy, 'https': proxy}, headers={
+                                        'User-Agent': random.choice(ua_list)}, timeout=5)
+            return response
+        except Exception:
+                time.sleep(1)
+                retry_count += 1
+    return ''
