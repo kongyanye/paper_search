@@ -8,6 +8,7 @@ import requests
 import random
 import time
 import json
+import dateutil.parser
 
 # global settings
 # -----------------------------------------------------------------------------
@@ -24,15 +25,15 @@ class Config(object):
     txt_dir = os.path.join('data', 'arxiv_txt')
     thumbs_dir = os.path.join('static', 'arxiv_thumbs')
     # intermediate pickles
-    tfidf_path = './data/run_time/tfidf.p'
-    meta_path = './data/run_time/tfidf_meta.p'
-    sim_path = './data/run_time/sim_dict.p'
-    user_sim_path = './data/run_time/user_sim.p'
+    tfidf_path = './data/runtime/tfidf.p'
+    meta_path = './data/runtime/tfidf_meta.p'
+    sim_path = './data/runtime/sim_dict.p'
+    user_sim_path = './data/runtime/user_sim.p'
     # sql database file
     # an enriched db.p with various preprocessing info
-    db_serve_path = './data/run_time/db2.p'
-    database_path = './data/run_time/as.db'
-    serve_cache_path = './data/run_time/serve_cache.p'
+    db_serve_path = './data/runtime/db2.p'
+    database_path = './data/runtime/as.db'
+    serve_cache_path = './data/runtime/serve_cache.p'
 
     # do we beg the active users randomly for money? 0 = no.
     beg_for_hosting_money = 1
@@ -43,7 +44,7 @@ class Config(object):
         'cs.DB, cs.DC, cs.DL, cs.DM, cs.DS, cs.ET, cs.FL, cs.GL, cs.GR, cs.GT, cs.HC, cs.IR, '\
         'cs.IT, cs.LG, cs.LO, cs.MA, cs.MM, cs.MS, cs.NA, cs.NE, cs.NI, cs.OH, cs.OS, cs.PF, '\
         'cs.PL, cs.RO, cs.SC, cs.SD, cs.SE, cs.SI, cs.SY'
-
+    default_published_time = '2000-01-01'
 # Context managers for atomic writes courtesy of
 # http://stackoverflow.com/questions/2333872/atomic-writing-to-file-with-python
 
@@ -150,14 +151,16 @@ ua_list = [
 count = 50
 
 def get_ip_pool():
-    
+
+    url1 = ''
+    url2 = ''
     ip_pool = []
     for url in [url1, url2]:
         ip_pool += requests.get(url).text.strip().split('\r\n')
     return ip_pool
 
-ip_pool = get_ip_pool()
-failed = {}
+#ip_pool = get_ip_pool()
+#failed = {}
 
 
 def requests_get(url):
@@ -171,7 +174,7 @@ def requests_get(url):
                 failed[proxy] = 0
             else:
                 failed_sorted = sorted(failed, key=lambda x: failed[x])
-                if failed[failed_sorted[0]] > 3:
+                if failed[failed_sorted[0]] > 2:
                     ip_pool = get_ip_pool()
                     failed = {}
                     continue
@@ -198,20 +201,40 @@ def requests_get_test(url):
             print('Fail to download page %s: %s, retrying....' % (url, e))
             time.sleep(1)
 
-json_url = "https://raw.githubusercontent.com/scidam/proxy-list/master/proxy.json"
-proxies = json.loads(open('proxies.json','r').read()) #json.loads(requests.get(json_url).text)
-proxy_pool = [each['ip']+':'+each['port'] for each in proxies['proxies']]
-print('%d proxies in total'%len(proxy_pool))
+def load_db():
+    # read arxiv papers
+    print('Reading files from arxiv db...')
+    db_arxiv = pickle.load(open(Config.db_arxiv_dir+'db_arxiv.p', 'rb'))
+    print('%d papers loaded from arxiv'%len(db_arxiv))
 
-def requests_get_proxy(url):
-    retry_count = 0
-    while retry_count <= 3:
+    # read other papers
+    print('Reading files from other db...')
+    db_other = pickle.load(open(Config.db_other_dir+'db_other.p', 'rb'))
+    print('%d papers loaded from other'%len(db_other))
+
+    # combine the two db into one
+    db_other.update(db_arxiv)
+    print('%d papers found in total'%len(db_other))
+    return db_other
+
+def parse_time(t):
+    try:
+        timestruct = dateutil.parser.parse(t)
+    except:
         try:
-            proxy = random.choice(proxy_pool)
-            response = requests.get(url, proxies={'http': proxy, 'https': proxy}, headers={
-                                        'User-Agent': random.choice(ua_list)}, timeout=5)
-            return response
-        except Exception:
-                time.sleep(1)
-                retry_count += 1
-    return ''
+            timestruct = dateutil.parser.parse(t.split('-')[1])
+        except:
+            try:
+                timestruct = dateutil.parser.parse(t.split('/')[-1])
+            except:
+                timestruct = dateutil.parser.parse(Config.default_published_time)
+    return timestruct
+
+def flatten(l):
+    if isinstance(l, list):
+        res = []
+        for each in l:
+            res += flatten(each)
+        return res
+    else:
+        return [l]

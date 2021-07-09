@@ -2,7 +2,7 @@ body {
 	margin: 0;
 	padding: 0;
 	font-family: arial;
-	background-color: #F6F3E5;
+	background-color: #FFF5DE;
 }
 .as {
 	font-size: 14px;
@@ -66,7 +66,7 @@ h1 {
 #titdiv {
 	width: auto;
 	height: 70px;
-	background-color: #840000;
+	background-color: #3C5186;
 	color: white;
 
 	padding-top: 20px;
@@ -75,7 +75,7 @@ h1 {
 	border-bottom: 1px solid #540000;
 }
 #tittxt {
-	width: 500px;
+	width: 1000px;
 	display: inline-block;
 }
 
@@ -277,7 +277,7 @@ ul.flashes li {
 	border-top: 1px solid #AAA;
 	
 	padding: 10px 5px 10px 5px;
-	background-color: #CCE;
+	background-color: #C6B4CE;
 }
 #pagebar a:link{ text-decoration: none; color: #338;}
 #pagebar a:visited{ text-decoration: none; color: #338;}
